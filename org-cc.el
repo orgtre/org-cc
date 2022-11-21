@@ -139,16 +139,26 @@ but checking for them is slow."
     (buffer-file-name))))
 
 (defun org-cc--build-completion-string (metalist format)
-  "Build completing-read string based on alist METALIST."
+  "Build completing-read string based on alist METALIST.
+METALIST is an alist of data returned by the commands
+get-data-function; the data field names are the keys
+and the field contents the values.
+FORMAT is as specified in `org-cc'."
   (mapconcat
    (lambda (x) (org-cc--build-completion-string-sub x metalist))
    format
    ""))
 
 (defun org-cc--build-completion-string-sub (field metalist)
+  "Construct the part of the completion string corresponding to FIELD.
+FIELD is an entry of the format alist specified in `org-cc'; it has
+the data field name in car and a format alist in cdr. METALIST is
+as in `org-cc--build-completion-string'."
   (let-alist (cdr field)
     (let* ((field-name (car field))
+	   (field-prefix (concat "^" (symbol-name field-name) ":"))
 	   (field-content (alist-get field-name metalist))
+	   (field-suffix (concat " " field-content "$"))
 	   (field-length (length field-content))
 	   (target-length (+ .first (length .sep) .last))
 	   comp-string)
@@ -179,9 +189,11 @@ but checking for them is slow."
 		   .sep
 		   (org-cc--get-last-n-visible-chars field-content .last)
 		   .end)))))
-      (set-text-properties 0 (length field-content)
-			   '(invisible t) field-content)
-      (concat comp-string field-content))))
+      (set-text-properties 0 (length field-prefix)
+			   '(invisible t) field-prefix)
+      (set-text-properties 0 (length field-suffix)
+			   '(invisible t) field-suffix)
+      (concat field-prefix comp-string field-suffix))))
 
 (defun org-cc--count-invisible-chars (string)
   "Count the number of invisible characters in STRING."
