@@ -13,19 +13,29 @@
   "Custom completions for Org."
   :group 'text)
 
+(defvar org-cc-heading-get-data-config
+  `((respect-org-indent nil))
+  "Alist of options passed on to `org-cc-heading-get-data'.
+
+A short description of each key:
+
+  respect-org-indent (bool)
+  Whether to respect indent set by `org-indent-mode'.")
+
 (defcustom org-cc
   `((heading
      (prompt "Headings: ")
      (data-format (heading (first . 40)(sep . "...")(last . 10)(end . "   "))
 		  (tags (first . 20)(sep . "")(last . 0)(end . "")))
      (get-data-function org-cc-heading-get-data)
-     (get-data-config org-cc-heading-get-data-config))
+     (get-data-config ,(car org-cc-heading-get-data-config))
+     (sort-function identity))
     (heading2
      (prompt "Headings: ")
      (data-format (heading (first . 20)(sep . "...")(last . 10)(end . "   "))
 		  (tags (first . 20)(sep . "")(last . 0)(end . "")))
      (get-data-function org-cc-heading-get-data)
-     (get-data-config org-cc-heading-get-data-config)))
+     (get-data-config ,(car org-cc-heading-get-data-config))))
   "Alist defining your custom completions.
 
 Each key will be used as suffix to define a command 'org-cc-key'.
@@ -64,22 +74,13 @@ Each value should in turn be an alist with the following keys:
       (remove-text-properties 0 1 '(line-prefix) heading)
       `((heading . ,heading)(tags . ,tags)))))
 
-(defvar org-cc-heading-get-data-config
-  `((respect-org-indent nil))
-  "Alist of options passed on to `org-cc-heading-get-data'.
-
-A short description of each key:
-
-  respect-org-indent (bool)
-  Whether to respect indent set by `org-indent-mode'.")
-
 (defcustom org-cc-default-adjust-for-invisible-chars t
   "Whether to adjust the completion string for invisible chars.
 Invisible characters throw off the column alignment
 but checking for them is slow."
   :type 'bool)
 
-(defcustom org-cc-default-sort-function #'identity
+(defcustom org-cc-default-sort-function nil
   "Function used to sort completition candidates."
   :type 'function)
 
@@ -100,11 +101,14 @@ but checking for them is slow."
 (defun org-cc--goto (name)
   (let-alist (alist-get (intern name) org-cc)
     (let-alist (org-cc--get-data (car .get-data-function)
-				 .get-data-config .data-format)
-      (let* ((choice
+				 (car .get-data-config) .data-format)
+      (let* ((sort-fun (or (car (alist-get 'sort-function
+				      (alist-get (intern name) org-cc)))
+			   org-cc-default-sort-function))
+	     (choice
               (completing-read
 	       (car (alist-get 'prompt (alist-get (intern name) org-cc)))
-	       (org-cc--create-collection-function .choice-list)))
+	       (org-cc--create-collection .choice-list sort-fun)))
 	     (position (gethash choice .hash-table)))
 	(let-alist position	
 	  (find-file .file)
@@ -212,11 +216,11 @@ but checking for them is slow."
       (setq itot (- itot 1)))
     (substring string (+ itot 1) (length string))))
 
-(defun org-cc--create-collection-function (completions)
+(defun org-cc--create-collection (completions sort-fun)
   ;; source: https://emacs.stackexchange.com/a/8177
   (lambda (string pred action)
     (if (eq action 'metadata)
-        `(metadata (display-sort-function . ,org-cc-default-sort-function))
+        `(metadata (display-sort-function . ,sort-fun))
       (complete-with-action action completions string pred))))
 
 
