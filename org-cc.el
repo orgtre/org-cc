@@ -13,66 +13,39 @@
   "Custom completions for Org."
   :group 'text)
 
-(defvar org-cc-heading-get-data-config
-  `((respect-org-indent nil))
-  "Alist of options passed on to `org-cc-heading-get-data'.
-
-A short description of each key:
-
-  respect-org-indent (bool)
-  Whether to respect indent set by `org-indent-mode'.")
-
-(defcustom org-cc
-  `((heading
-     (prompt "Headings: ")
-     (data-format (heading (first . 40)(sep . "...")(last . 10)(end . "   "))
-		  (tags (first . 20)(sep . "")(last . 0)(end . "")))
-     (get-data-function org-cc-heading-get-data)
-     (get-data-config ,(car org-cc-heading-get-data-config))
-     (sort-function identity))
-    (heading2
-     (prompt "Headings: ")
-     (data-format (heading (first . 20)(sep . "...")(last . 10)(end . "   "))
-		  (tags (first . 20)(sep . "")(last . 0)(end . "")))
-     (get-data-function org-cc-heading-get-data)
-     (get-data-config ,(car org-cc-heading-get-data-config))))
+(defcustom org-cc nil
   "Alist defining your custom completions.
 
 Each key will be used as suffix to define a command 'org-cc-key'.
 Each value should in turn be an alist with the following keys:
 
-  prompt
-  The prompt used by `completing-read'.
-
-  data-format
+  format (alist)
   An alist specifying the names of all data fields as keys
-  and an alist of their format specification as values.
+  and an alist of their format specification as values. This is
+  used to format the data field contents returned by
+  get-data-function into completion candidates passed on to
+  `completing-read'.
 
-  get-data-function
+  get-data-function (function)
   A function with one &rest argument which returns an alist with
-  the data-field names specified by data-format as keys and their
-  contents as values.
+  the data-field names specified by format as keys and their
+  contents as values. It should work when called at the beginning
+  of an org entry as it will be used with `org-map-entries'.
 
-  get-data-config
-  An alist of configuration options passed to get-data-function."
+  get-data-config (alist, optional)
+  An alist of configuration options passed to get-data-function.
+
+  match, scope, skip (optional)
+  See `org-map-entries', to which they are passed.
+
+  prompt (string, optional)
+  The prompt passed on to `completing-read'.
+
+  sort-function (function, optional)
+  Function used to sort completion candidates.
+
+See the example custom completion commands."
   :type 'list)
-
-(defun org-cc-heading-get-data (&rest config)
-  "Build an alist of (meta)data for entry."
-  (let-alist config 
-    (let ((heading
-	   ;;(substring-no-properties (org-get-heading))
-	   (org-get-heading t))
-	  (tags
-	   (mapconcat (lambda (x) x) (org-get-tags) " ")))
-      ;; fix misalignment caused by org-indent-mode's line-prefix
-      (when .respect-org-indent
-	(let ((prefix-length
-	       (length (get-text-property 0 'line-prefix heading))))
-	  (setq heading
-		(concat (make-string prefix-length ? ) heading))))
-      (remove-text-properties 0 1 '(line-prefix) heading)
-      `((heading . ,heading)(tags . ,tags)))))
 
 (defcustom org-cc-default-adjust-for-invisible-chars t
   "Whether to adjust the completion string for invisible chars.
@@ -81,8 +54,26 @@ but checking for them is slow."
   :type 'bool)
 
 (defcustom org-cc-default-sort-function nil
-  "Function used to sort completition candidates."
+  "Default function used to sort completion candidates."
   :type 'function)
+
+
+;; * Example custom completion commands
+
+(add-to-list
+ 'org-cc
+ `(heading
+   (format (heading (first . 40)(sep . "...")(last . 10)(end . "   "))
+	   (tags (first . 20)(sep . "")(last . 0)(end . "")))
+   (get-data-function org-cc-heading-get-data)
+   (prompt "Headings: ")
+   (sort-function identity)))
+
+(defun org-cc-heading-get-data (&rest _config)
+  "Function used by `org-cc-heading' to get entry data."
+  (let-alist _config
+    `((heading . ,(org-cc--get-heading t nil t))
+      (tags . ,(mapconcat 'identity (org-get-tags) " ")))))
 
 
 ;; * Main
@@ -90,6 +81,7 @@ but checking for them is slow."
 ;;;###autoload
 (defun org-cc-create-commands ()
   "Create the completion commands defined via `org-cc'."
+  (interactive)
   (dolist (var org-cc)
     (eval `(org-cc--create-command ,(symbol-name (car var))))))
 
@@ -100,17 +92,21 @@ but checking for them is slow."
 
 (defun org-cc--goto (name)
   (let-alist (alist-get (intern name) org-cc)
-    (let-alist (org-cc--get-data (car .get-data-function)
-				 (car .get-data-config) .data-format)
-      (let* ((sort-fun (or (car (alist-get 'sort-function
-				      (alist-get (intern name) org-cc)))
+    (let-alist (org-cc--get-data .format
+				 (car .get-data-function)
+				 (car .get-data-config)
+				 (car .match)
+				 (car .scope)
+				 (car .skip))
+      (let* ((name-config (alist-get (intern name) org-cc))
+	     (sort-fun (or (nth 1 (assq 'sort-function name-config))
 			   org-cc-default-sort-function))
 	     (choice
               (completing-read
-	       (car (alist-get 'prompt (alist-get (intern name) org-cc)))
+	       (nth 1 (assq 'prompt (alist-get (intern name) org-cc)))
 	       (org-cc--create-collection .choice-list sort-fun)))
 	     (position (gethash choice .hash-table)))
-	(let-alist position	
+	(let-alist position
 	  (find-file .file)
 	  (org-content 1)
 	  (goto-char .startpos)
@@ -119,17 +115,17 @@ but checking for them is slow."
 	  (org-show-entry)
 	  (org-show-children))))))
 
-(defun org-cc--get-data (fun config data-format)
+(defun org-cc--get-data (format fun &optional config match scope skip)
   (let* ((hash-table (make-hash-table :test 'equal))
 	 (choice-list (org-map-entries 
 		       (lambda ()
 			 (let ((choice-string (org-cc--build-completion-string 
 					       (funcall fun config)
-					       data-format)))
+					       format)))
 			   (puthash choice-string (org-cc--get-position)
 				    hash-table)
-			   choice-string
-			   )))))
+			   choice-string))
+		       match scope skip)))
     (list (cons 'choice-list choice-list)
 	  (cons 'hash-table hash-table))))
 
@@ -142,11 +138,11 @@ but checking for them is slow."
     'file
     (buffer-file-name))))
 
-(defun org-cc--build-completion-string (metalist data-format)
+(defun org-cc--build-completion-string (metalist format)
   "Build completing-read string based on alist METALIST."
   (mapconcat
    (lambda (x) (org-cc--build-completion-string-sub x metalist))
-   data-format
+   format
    ""))
 
 (defun org-cc--build-completion-string-sub (field metalist)
@@ -222,6 +218,25 @@ but checking for them is slow."
     (if (eq action 'metadata)
         `(metadata (display-sort-function . ,sort-fun))
       (complete-with-action action completions string pred))))
+
+(defun org-cc--get-heading (&optional respect-indent no-properties
+				      &rest exclusions)
+  "Get formatted heading of org entry at point.
+With RESPECT-INDENT include the indent as part of the heading.
+With NO-PROPERTIES exclude text properties. EXCLUSIONS are
+passed as arguments to `org-get-heading'."
+  (let ((heading (apply #'org-get-heading exclusions))
+	prefix-length)
+    (if no-properties
+	(setq heading (substring-no-properties heading))
+      (when respect-indent
+	(setq prefix-length
+	      (length (get-text-property 0 'line-prefix heading)))
+	(setq heading
+	      (concat (make-string prefix-length ? ) heading)))
+      ;; fix misalignment caused by org-indent-mode's line-prefix
+      (remove-text-properties 0 1 '(line-prefix) heading))
+    heading))
 
 
 (provide 'org-cc.el)
