@@ -19,13 +19,13 @@
      (data-format (heading (first . 40)(sep . "...")(last . 10)(end . "   "))
 		  (tags (first . 20)(sep . "")(last . 0)(end . "")))
      (get-data-function org-cc-heading-get-data)
-     (get-data-config (respect-org-indent t)))
+     (get-data-config org-cc-heading-get-data-config))
     (heading2
      (prompt "Headings: ")
      (data-format (heading (first . 20)(sep . "...")(last . 10)(end . "   "))
 		  (tags (first . 20)(sep . "")(last . 0)(end . "")))
      (get-data-function org-cc-heading-get-data)
-     (get-data-config )))
+     (get-data-config org-cc-heading-get-data-config)))
   "Alist defining your custom completions.
 
 Each key will be used as suffix to define a command 'org-cc-key'.
@@ -99,13 +99,13 @@ but checking for them is slow."
 
 (defun org-cc--goto (name)
   (let-alist (alist-get (intern name) org-cc)
-    (let-alist (org-cc--get-data (car .get-data-function) .get-data-config .data-format)
+    (let-alist (org-cc--get-data (car .get-data-function)
+				 .get-data-config .data-format)
       (let* ((choice
               (completing-read
 	       (car (alist-get 'prompt (alist-get (intern name) org-cc)))
 	       (org-cc--create-collection-function .choice-list)))
 	     (position (gethash choice .hash-table)))
-	(print position)
 	(let-alist position	
 	  (find-file .file)
 	  (org-content 1)
@@ -113,8 +113,7 @@ but checking for them is slow."
 	  (when (or (org-invisible-p) (org-invisible-p2))
 	    (org-show-set-visibility t))
 	  (org-show-entry)
-	  (org-show-children)
-	  )))))
+	  (org-show-children))))))
 
 (defun org-cc--get-data (fun config data-format)
   (let* ((hash-table (make-hash-table :test 'equal))
