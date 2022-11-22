@@ -262,6 +262,23 @@ passed as arguments to `org-get-heading'."
       (remove-text-properties 0 1 '(line-prefix) heading))
     heading))
 
+(defun org-cc--entry-contents-string (&optional no-properties
+                                                no-linebreaks trim)
+  "Return the contents of the entry at point as a string."
+  (save-excursion
+    (let ((s (if no-properties
+                 (buffer-substring-no-properties
+                  (progn (org-end-of-meta-data t) (point))
+                  (org-end-of-subtree t))
+               (buffer-substring
+                (progn (org-end-of-meta-data t) (point))
+                (org-end-of-subtree t)))))
+      (when no-linebreaks
+        (setq s (string-replace "\n" " " s)))
+      (when trim
+        (setq s (string-trim s)))
+      s)))
+
 
 (provide 'org-cc.el)
 ;;; org-cc.el ends here
