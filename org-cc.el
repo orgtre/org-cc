@@ -73,7 +73,9 @@ but checking for them is slow."
   "Function used by `org-cc-heading' to get entry data."
   (let-alist _config
     `((heading . ,(org-cc--get-heading t nil t))
-      (tags . ,(mapconcat 'identity (org-get-tags) " ")))))
+      (tags . ,(propertize
+		(mapconcat 'identity (org-get-tags) " ")
+		'face 'org-tag)))))
 
 
 ;; * Main
@@ -144,10 +146,11 @@ METALIST is an alist of data returned by the commands
 get-data-function; the data field names are the keys
 and the field contents the values.
 FORMAT is as specified in `org-cc'."
-  (mapconcat
-   (lambda (x) (org-cc--build-completion-string-sub x metalist))
-   format
-   ""))
+  (string-trim-right
+   (mapconcat
+    (lambda (x) (org-cc--build-completion-string-sub x metalist))
+    format
+    "")))
 
 (defun org-cc--build-completion-string-sub (field metalist)
   "Construct the part of the completion string corresponding to FIELD.
@@ -156,44 +159,53 @@ the data field name in car and a format alist in cdr. METALIST is
 as in `org-cc--build-completion-string'."
   (let-alist (cdr field)
     (let* ((field-name (car field))
-	   (field-prefix (concat "^" (symbol-name field-name) ":"))
+	   (field-prefix (propertize
+			  (concat "^" (symbol-name field-name) ":")
+			  'invisible t))
 	   (field-content (alist-get field-name metalist))
-	   (field-suffix (concat " " field-content "$"))
+	   (field-suffix (propertize "$" 'invisible t))
 	   (field-length (length field-content))
 	   (target-length (+ .first (length .sep) .last))
 	   comp-string)
       (when (not org-cc-default-adjust-for-invisible-chars)
 	(if (<= field-length target-length)
-	    (setq comp-string (concat field-content
+	    (setq comp-string (concat field-prefix field-content field-suffix
 				      (make-string 
 				       (- target-length field-length) ? )
 				      .end))
 	  (setq comp-string
-		(concat 
+		(concat
+		 field-prefix
 		 (substring field-content 0 .first)
+		 (propertize (substring field-content .first field-length)
+			     'invisible t)
+		 field-suffix
 		 .sep
 		 (substring field-content (- field-length .last) field-length)
 		 .end))))
       (when org-cc-default-adjust-for-invisible-chars
 	(let ((total-invisible (org-cc--count-invisible-chars field-content)))
 	  (if (<= (- field-length total-invisible) target-length)
-	      (setq comp-string (concat field-content
+	      (setq comp-string (concat field-prefix field-content field-suffix
 					(make-string 
 					 (- target-length
 					    (- field-length total-invisible))
 					 ? )
 					.end))
 	    (setq comp-string
-		  (concat
-		   (org-cc--get-first-n-visible-chars field-content .first)
-		   .sep
-		   (org-cc--get-last-n-visible-chars field-content .last)
-		   .end)))))
-      (set-text-properties 0 (length field-prefix)
-			   '(invisible t) field-prefix)
-      (set-text-properties 0 (length field-suffix)
-			   '(invisible t) field-suffix)
-      (concat field-prefix comp-string field-suffix))))
+		  (let ((first-n-visible (org-cc--get-first-n-visible-chars
+					  field-content .first)))
+		    (concat
+		     field-prefix
+		     first-n-visible
+		     (propertize (substring field-content (length first-n-visible)
+					    field-length)
+				 'invisible t)
+		     field-suffix
+		     .sep
+		     (org-cc--get-last-n-visible-chars field-content .last)
+		     .end))))))
+      comp-string)))
 
 (defun org-cc--count-invisible-chars (string)
   "Count the number of invisible characters in STRING."
