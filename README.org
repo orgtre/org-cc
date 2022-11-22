@@ -1,10 +1,10 @@
 * org-cc - Custom completions for Org
 
-This package makes it easy to create rich multi-column custom completion interfaces to find specific Org entries based on their (meta)data. The goal is to have a completion interface similar to that of [[https://github.com/emacs-citar/citar][citar]], but for arbitrary subsets of Org entries.
+This Emacs package makes it easy to create rich multi-column custom completion commands to find specific Org entries based on their data and metadata. The goal is to have a completion interface similar to that of [[https://github.com/emacs-citar/citar][citar]], but for arbitrary subsets of Org entries.
 
-Everything is based on the built-in =completing-read= function. org-cc is similar but complementary to [[https://github.com/minad/marginalia][marginalia]] and [[https://github.com/minad/consult][consult]], and can be fruitfully combined with [[https://github.com/minad/vertico][vertico]] and [[https://github.com/oantolin/embark][embark]]. 
+Everything is based on the built-in functions =org-map-entries= and =completing-read=. This makes org-cc similar but complementary to [[https://github.com/minad/marginalia][marginalia]] and [[https://github.com/minad/consult][consult]]. Combination with [[https://github.com/minad/vertico][vertico]] and [[https://github.com/oantolin/embark][embark]] is recommended.
 
-org-cc is especially useful for sets of entries that have a common structure, like a fix set of properties, tags, or subheadings. For example, if you store your recipes, journal entries, book/movie reviews, or similar together with some specific properties, org-cc can be used to quickly create specific completion interfaces for each. A great use case would be for searching notes created by [[https://github.com/orgtre/anki-editor][anki-editor]], [[https://github.com/eyeinsky/org-anki][org-anki]], or [[https://github.com/l3kn/org-fc][org-fc]].
+org-cc is especially useful for sets of entries that have a common structure, like a fix set of properties, tags, or subheadings. For example, if you store your recipes, journal entries, book/movie reviews, or similar together with some specific properties, org-cc can be used to quickly create specific completion interfaces for each. A great use case is searching notes created by [[https://github.com/orgtre/anki-editor][anki-editor]], [[https://github.com/eyeinsky/org-anki][org-anki]], or [[https://github.com/l3kn/org-fc][org-fc]].
 
 
 ** Installation
