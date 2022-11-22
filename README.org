@@ -1,4 +1,4 @@
-* org-cc - Custom completions for Org
+* org-cc: Custom completions for Org
 
 This Emacs package makes it easy to create rich multi-column custom completion commands to find specific Org entries based on their data and metadata. The goal is to have a completion interface similar to that of [[https://github.com/emacs-citar/citar][citar]], but for arbitrary subsets of Org entries.
 
@@ -20,6 +20,67 @@ Installation using [[https://github.com/radian-software/straight.el][straight.el
 
 ** Usage
 
-See the docstring of variable =org-cc= to get started.
+See the docstring of variable =org-cc= and the example below to get started.
 
 For correct alignment you need to use a fixed-pitch font in all visible text that is used to create the completion candidates. Moreover, to correctly fold links and the like you need to =(setq org-fold-core-style 'overlays).=
+
+
+*** Example: anki-editor notes
+
+[[./anki_notes_example.png]]
+
+Notes created by [[https://github.com/orgtre/anki-editor][anki-editor]] are org entries with a fix set of properties (some potentially retrieved with inheritance). An example is given in the picture above. To create a custom completion interface for them using org-cc the following code can be used:
+
+#+begin_src elisp
+  (require 'anki-editor)
+  (require 'all-the-icons)
+
+  (add-to-list
+   'org-cc
+   `(anki-notes
+     (format (id (first . 1)(sep . "")(last . 0)(end . "  "))
+             (model (first . 1)(sep . "")(last . 0)(end . "  "))
+             (heading (first . 58)(sep . "")(last . 0)(end . "  "))
+             (deck (first . 11)(sep . "")(last . 0)(end . "  "))
+             (content (first . 0)(sep . "")(last . 0)(end . ""))	    
+             (tags (first . 30)(sep . "")(last . 0)(end . "")))
+     (get-data-function org-cc-anki-notes-get-data)
+     (prompt "Notes: ")
+     (sort-function nil)
+     (match "ANKI_NOTE_TYPE<>\"\"")
+     (scope ,my-anki-editor-note-files)))
+
+  (defun org-cc-anki-notes-get-data (&rest config)
+    "Function used by `org-cc-anki-note' to get entry data."
+    (let ((id (org-entry-get nil "ANKI_NOTE_ID"))
+          (heading (org-cc--get-heading nil nil t))
+          (model (org-entry-get nil "ANKI_NOTE_TYPE"))
+          (deck (org-entry-get nil "ANKI_DECK" t))
+          (tags (mapconcat 'identity
+                           (let ((org-trust-scanner-tags t))
+                             (anki-editor--get-tags))
+                           " "))
+          (content (org-cc--entry-contents-string t t t)))
+      ;; replace id text with icon indicating its existence
+      ;; but retain searchability and alignment:
+      (if id
+          (setq id (concat
+                    (propertize id 'invisible t)
+                    (all-the-icons-faicon "star" :face 'all-the-icons-lblue)))
+        (setq id (all-the-icons-faicon "star" :face 'org-indent)))
+      ;; make first character of model field bold:
+      (add-face-text-property 0 1 'bold nil model)
+      ;; set face for tags:
+      (set-text-properties 0 (length tags) '(face org-tag) tags)
+      ;; return an alist:
+      `((id . ,id)(heading . ,heading)(model . ,model)
+        (deck . ,deck)(content . ,content)(tags . ,tags))))
+
+  (org-cc-create-commands)
+#+end_src
+
+Essential here is the format specification and the custom function to get the data of a given Org entry. Each column in the completion interface corresponds to a data field, which in turn corresponds to an entry in the *format alist* of the commands entry in variable =orc-cc=, and an entry in the *data alist* returned by =org-cc-anki-notes-get-data=. The macro =org-cc-create-commands= then creates the command =org-cc-anki-notes= which was called to produce the completion interface in the picture.
+
+Note that =my-anki-editor-note-files= is a list with paths to 22 files; when calling the command it takes around 3s to map across the 4139 notes in these files and show the completion candidates.
+
+The fully searchable completion string of the entry highlighted in the picture is =^id:1602351620255$  ^model:LeftAligned$  ^heading:the. symmetry and eigenvalues$                               ^deck:Mathematics$  ^content:All eigenvalues of a symmetric matrix are real.$^tags:Emacs linear_algebra$=, but parts of it get text property 'invisible. This is controlled by the *format alist*: Field content characters at position after the cdr of *first* are made invisible. (By specifying the cdr of *last* different than 0, one can optionally also visibly append this number of the last characters.) For example, no part of /content/ is visible, but one can still filter the search by it. Note that the space at the end is the only part of /id/ that is visible; it actually contains the star character of an icon font which is used to indicate whether a note has been pushed to Anki.
