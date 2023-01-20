@@ -269,10 +269,10 @@ passed as arguments to `org-get-heading'."
     (let ((s (if no-properties
                  (buffer-substring-no-properties
                   (progn (org-end-of-meta-data t) (point))
-                  (org-end-of-subtree t))
+                  (if (org-at-heading-p) (point) (org-end-of-subtree t)))
                (buffer-substring
                 (progn (org-end-of-meta-data t) (point))
-                (org-end-of-subtree t)))))
+                (if (org-at-heading-p) (point) (org-end-of-subtree t))))))
       (when no-linebreaks
         (setq s (string-replace "\n" " " s)))
       (when trim
