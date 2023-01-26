@@ -88,11 +88,16 @@ but checking for them is slow."
     (eval `(org-cc--create-command ,(symbol-name (car var))))))
 
 (defmacro org-cc--create-command (name)
+  "Creates a command called org-cc-NAME.
+The commands body is made up of `org-cc--goto'."
   `(defun ,(intern (format "org-cc-%s" name)) ()
      (interactive)
      (org-cc--goto ,name)))
 
 (defun org-cc--goto (name)
+  "Generic goto routine used to built all completion commands.
+It uses the data found in the cdr of the entry with car NAME in `org-cc',
+and forms the body of a command created by `org-cc-create-commands'."
   (let-alist (alist-get (intern name) org-cc)
     (let-alist (org-cc--get-data .format
 				 (car .get-data-function)
@@ -118,6 +123,11 @@ but checking for them is slow."
 	  (org-show-children))))))
 
 (defun org-cc--get-data (format fun &optional config match scope skip)
+  "Returns an alist with entries `choice-list' and `hash-table'.
+`choice-list' contains the choice alternatives (completion strings).
+`hash-table' contains the choice alternatives as keys and the position
+of the corresponding headings as values. FORMAT, FUN, CONFIG, MATCH,
+SCOPE, and SKIP are as in `org-cc'."
   (let* ((hash-table (make-hash-table :test 'equal))
 	 (choice-list (org-map-entries 
 		       (lambda ()
@@ -132,6 +142,9 @@ but checking for them is slow."
 	  (cons 'hash-table hash-table))))
 
 (defun org-cc--get-position ()
+  "Return alist holding current buffer position and filename."
+  ;; could use (point-marker) instead, but this would require keeping all
+  ;; files we collect positions from open, which we might not want in future
   (list
    (cons 
     'startpos
@@ -198,7 +211,8 @@ as in `org-cc--build-completion-string'."
 		    (concat
 		     field-prefix
 		     first-n-visible
-		     (propertize (substring field-content (length first-n-visible)
+		     (propertize (substring field-content
+                                            (length first-n-visible)
 					    field-length)
 				 'invisible t)
 		     field-suffix
@@ -218,6 +232,7 @@ as in `org-cc--build-completion-string'."
     count))
 
 (defun org-cc--get-first-n-visible-chars (string n)
+  "Return the smallest prefix of STRING with N visible chars."
   (let ((itot 0)
 	(ivis 0))
     (while (<= ivis n)
@@ -227,6 +242,7 @@ as in `org-cc--build-completion-string'."
     (substring string 0 (- itot 1))))
 
 (defun org-cc--get-last-n-visible-chars (string n)
+  "Return the smallest suffix of STRING with N visible chars."
   ;; reverse discards properties so can't use it
   (let ((itot (length string))
 	(ivis 0))
@@ -237,6 +253,8 @@ as in `org-cc--build-completion-string'."
     (substring string (+ itot 1) (length string))))
 
 (defun org-cc--create-collection (completions sort-fun)
+  "Add SORT-fun as display-sort-function to list COMPLETIONS.
+This ensures the completion data is sorted according to SORT-FUN."
   ;; source: https://emacs.stackexchange.com/a/8177
   (lambda (string pred action)
     (if (eq action 'metadata)
