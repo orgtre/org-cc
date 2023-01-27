@@ -40,31 +40,41 @@ Each key will be used as suffix to define a command `org-cc-key'.
 Each value should in turn be an alist with the following keys
 and values:
 
-  format (alist)
-  An alist specifying the names of all data fields as keys
-  and an alist of their format specification as values. This is
-  used to format the data-field contents returned by
+  format (list of one string or alist)
+  This is used to format the data-field contents returned by
   get-data-function into completion candidates passed on to
-  `completing-read'.
+  `completing-read'. The two ways to specify the format are:
 
-    Each entry of this format alist should look like this:
-    (NAME (first . INT)(sep . STR)(last . INT)(end . STR))
-    where NAME is the data-field name as in get-data-function
-    below and the values are:
+  1. As a list of one string, where the string is of the same
+     form as the column specification for Org column view. See
+     the Info node `(org)Column attributes'. Only the width (INT)
+     and property (NAME) attributes are used, and they both have
+     to be specified for each data field like this:
+     %[INT1]NAME1 %[INT2]NAME2 %[INT3]NAME3 ...
+     Each NAME should match one data-field name returned
+     by get-data-function below.
 
-      first (must be specified)
-      The number of characters to display from the beginning of
-      the data field.
+  2. An alist between the names of all the data fields and
+     their format specification alist.
 
-      sep (default: `org-cc-field-part-separator')
-      The separator between the first and last parts of a field.
+     Each entry of this format alist should look like this:
+     (NAME (first . INT)(sep . STR)(last . INT)(end . STR))
+     where NAME is the data-field name as in get-data-function
+     below and the values are:
 
-      last (default: 0)
-      The number of characters to display from the end of the
-      data field.
+       first (must be specified)
+       The number of characters to display from the beginning of
+       the data field.
 
-      end (default: `org-cc-field-separator')
-      The separator between two different fields.
+       sep (default: `org-cc-field-part-separator')
+       The separator between the first and last parts of a field.
+
+       last (default: 0)
+       The number of characters to display from the end of the
+       data field.
+
+       end (default: `org-cc-field-separator')
+       The separator between two different fields.
 
   get-data-function (function)
   A function with one &rest argument which returns an alist with
@@ -153,6 +163,8 @@ The commands body is made up of `org-cc--goto'."
 It uses the data found in the cdr of the entry with car NAME in `org-cc',
 and forms the body of a command created by `org-cc-create-commands'."
   (let-alist (alist-get (intern name) org-cc)
+    (when (stringp (car .format))
+      (setq .format (org-cc--convert-columns-format (car .format))))
     (org-cc--fill-format-spec .format)
     (let-alist (org-cc--get-data .format
 				 (car .get-data-function)
@@ -176,6 +188,21 @@ and forms the body of a command created by `org-cc-create-commands'."
 	    (org-fold-show-set-visibility t))
 	  (org-fold-show-entry)
 	  (org-fold-show-children))))))
+
+(defun org-cc--convert-columns-format (fmt)
+  "Convert Org column view FMT into `org-cc' format alist.
+FMT is a string as described in Info node `(org)Column attributes'."
+  (let ((start 0)
+        (regex (concat "%\\([0-9]+\\)?\\([[:alnum:]_-]+\\)\\(?:(\\(?:[^)]+\\)"
+                       ")\\)?\\(?:{\\(?:[^}]+\\)}\\)?\\s-*"))
+        cc-fmt)
+    (while (string-match regex fmt start)
+      (setq start (match-end 0))
+      (let* ((width (and (match-end 1)
+                         (string-to-number (match-string 1 fmt))))
+	     (prop (match-string-no-properties 2 fmt)))
+        (push (cons (intern prop) (list (cons 'first width))) cc-fmt)))
+    (nreverse cc-fmt)))
 
 (defun org-cc--fill-format-spec (format)
   "Fill in the missing values in FORMAT.
