@@ -17,14 +17,34 @@
   "Alist defining your custom completions.
 
 Each key will be used as suffix to define a command 'org-cc-key'.
-Each value should in turn be an alist with the following keys:
+Each value should in turn be an alist with the following keys
+and values:
 
   format (alist)
   An alist specifying the names of all data fields as keys
   and an alist of their format specification as values. This is
-  used to format the data field contents returned by
+  used to format the data-field contents returned by
   get-data-function into completion candidates passed on to
   `completing-read'.
+
+    Each entry of this format alist should look like this:
+    (NAME (first . INT)(sep . STR)(last . INT)(end . STR))
+    where NAME is the data-field name as in get-data-function
+    below and the values are:
+
+      first (must be specified)
+      The number of characters to display from the beginning of
+      the data field.
+
+      sep (default: `org-cc-field-part-separator')
+      The separator between the first and last parts of a field.
+
+      last (default: 0)
+      The number of characters to display from the end of the
+      data field.
+
+      end (default: `org-cc-field-separator')
+      The separator between two different fields.
 
   get-data-function (function)
   A function with one &rest argument which returns an alist with
@@ -57,13 +77,27 @@ but checking for them is slow."
   "Default function used to sort completion candidates."
   :type 'function)
 
+(defcustom org-cc-field-separator "  "
+  "Separator end between two different fields.
+This value is added to the end of a field to separate it from the next.
+It is only used if end is not explicitly specified in the `org-cc'
+format."
+  :type 'string)
+
+(defcustom org-cc-field-part-separator ".."
+  "Separator sep between the parts of a field.
+If the middle part of a field is omitted, this value is used to
+separate the first and last parts. This variable is only used
+when sep is not explicitly specified in the `org-cc' format."
+  :type 'string)
+
 
 ;; * Example custom completion commands
 
 (add-to-list
  'org-cc
  `(heading
-   (format (heading (first . 40)(sep . "...")(last . 10)(end . "   "))
+   (format (heading (first . 40)(sep . "..")(last . 10)(end . "  "))
 	   (tags (first . 20)(sep . "")(last . 0)(end . "")))
    (get-data-function org-cc-heading-get-data)
    (prompt "Headings: ")
@@ -99,6 +133,7 @@ The commands body is made up of `org-cc--goto'."
 It uses the data found in the cdr of the entry with car NAME in `org-cc',
 and forms the body of a command created by `org-cc-create-commands'."
   (let-alist (alist-get (intern name) org-cc)
+    (org-cc--fill-format-spec .format)
     (let-alist (org-cc--get-data .format
 				 (car .get-data-function)
 				 (car .get-data-config)
@@ -121,6 +156,26 @@ and forms the body of a command created by `org-cc-create-commands'."
 	    (org-show-set-visibility t))
 	  (org-show-entry)
 	  (org-show-children))))))
+
+(defun org-cc--fill-format-spec (format)
+  "Fill in the missing values in FORMAT.
+FORMAT should be as in `org-cc'. It is modified directly."
+  (unless (assq 'end (cdr (car (last format))))
+    (push (cons 'end "") (cdr (car (last format)))))
+  (dolist (field-fmt format)
+    (let-alist (cdr field-fmt)
+      (unless .first
+        (user-error "Format in `org=cc' needs to contain `first'."))
+      (if (and .last (> .last 0))
+          (unless .sep (push (cons 'sep org-cc-field-part-separator)
+                             (cdr field-fmt)))
+        (if .sep
+            (setcdr (assq 'sep (cdr field-fmt)) "")
+          (push (cons 'sep "") (cdr field-fmt))))
+      (unless .last (push (cons 'last 0)
+                          (cdr field-fmt)))
+      (unless .end (push (cons 'end org-cc-field-separator)
+                         (cdr field-fmt))))))
 
 (defun org-cc--get-data (format fun &optional config match scope skip)
   "Returns an alist with entries `choice-list' and `hash-table'.
@@ -156,7 +211,7 @@ SCOPE, and SKIP are as in `org-cc'."
 (defun org-cc--build-completion-string (metalist format)
   "Build completing-read string based on alist METALIST.
 METALIST is an alist of data returned by the commands
-get-data-function; the data field names are the keys
+get-data-function; the data-field names are the keys
 and the field contents the values.
 FORMAT is as specified in `org-cc'."
   (string-trim-right
@@ -168,7 +223,7 @@ FORMAT is as specified in `org-cc'."
 (defun org-cc--build-completion-string-sub (field metalist)
   "Construct the part of the completion string corresponding to FIELD.
 FIELD is an entry of the format alist specified in `org-cc'; it has
-the data field name in car and a format alist in cdr. METALIST is
+the data-field name in car and a format alist in cdr. METALIST is
 as in `org-cc--build-completion-string'."
   (let-alist (cdr field)
     (let* ((field-name (car field))
