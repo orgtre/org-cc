@@ -1,5 +1,23 @@
 ;;; org-cc.el --- Custom completions for Org -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2022-2023 orgtre
+
+;; Author: orgtre
+;; URL: https://github.com/orgtre/org-cc
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 ;;; Commentary:
 
 ;; This package makes it easy to create rich custom completion interfaces
@@ -9,6 +27,8 @@
 
 ;; * Setup
 
+(require 'org)
+
 (defgroup org-cc nil
   "Custom completions for Org."
   :group 'text)
@@ -16,7 +36,7 @@
 (defcustom org-cc nil
   "Alist defining your custom completions.
 
-Each key will be used as suffix to define a command 'org-cc-key'.
+Each key will be used as suffix to define a command `org-cc-key'.
 Each value should in turn be an alist with the following keys
 and values:
 
@@ -103,9 +123,9 @@ when sep is not explicitly specified in the `org-cc' format."
    (prompt "Headings: ")
    (sort-function identity)))
 
-(defun org-cc-heading-get-data (&rest _config)
+(defun org-cc-heading-get-data (&rest config)
   "Function used by `org-cc-heading' to get entry data."
-  (let-alist _config
+  (let-alist config
     `((heading . ,(org-cc--get-heading t nil t))
       (tags . ,(propertize
 		(mapconcat 'identity (org-get-tags) " ")
@@ -153,9 +173,9 @@ and forms the body of a command created by `org-cc-create-commands'."
 	  (org-content 1)
 	  (goto-char .startpos)
 	  (when (or (org-invisible-p) (org-invisible-p2))
-	    (org-show-set-visibility t))
-	  (org-show-entry)
-	  (org-show-children))))))
+	    (org-fold-show-set-visibility t))
+	  (org-fold-show-entry)
+	  (org-fold-show-children))))))
 
 (defun org-cc--fill-format-spec (format)
   "Fill in the missing values in FORMAT.
