@@ -94,6 +94,10 @@ and values:
   sort-function (function, optional)
   Function used to sort completion candidates.
 
+  action (function, optional)
+  Defines the action to take with the choosen completion candidate.
+  Defaults to `org-cc--goto'.
+
 See the example custom completion commands."
   :type 'list)
 
@@ -153,41 +157,35 @@ when sep is not explicitly specified in the `org-cc' format."
 
 (defmacro org-cc--create-command (name)
   "Creates a command called org-cc-NAME.
-The commands body is made up of `org-cc--goto'."
+The commands body is made up of `org-cc--read'."
   `(defun ,(intern (format "org-cc-%s" name)) ()
      (interactive)
-     (org-cc--goto ,name)))
+     (org-cc--read ,name)))
 
-(defun org-cc--goto (name)
-  "Generic goto routine used to built all completion commands.
+(defun org-cc--read (name)
+  "Generic read routine used to built all completion commands.
 It uses the data found in the cdr of the entry with car NAME in `org-cc',
 and forms the body of a command created by `org-cc-create-commands'."
-  (let-alist (alist-get (intern name) org-cc)
-    (when (stringp (car .format))
-      (setq .format (org-cc--convert-columns-format (car .format))))
-    (org-cc--fill-format-spec .format)
-    (let-alist (org-cc--get-data .format
-				 (car .get-data-function)
-				 (car .get-data-config)
-				 (car .match)
-				 (car .scope)
-				 (car .skip))
-      (let* ((name-config (alist-get (intern name) org-cc))
-	     (sort-fun (or (nth 1 (assq 'sort-function name-config))
-			   org-cc-default-sort-function))
-	     (choice
-              (completing-read
-	       (nth 1 (assq 'prompt (alist-get (intern name) org-cc)))
-	       (org-cc--create-collection .choice-list sort-fun)))
-	     (position (gethash choice .hash-table)))
-	(let-alist position
-	  (find-file .file)
-	  (org-content 1)
-	  (goto-char .startpos)
-	  (when (or (org-invisible-p) (org-invisible-p2))
-	    (org-fold-show-set-visibility t))
-	  (org-fold-show-entry)
-	  (org-fold-show-children))))))
+  (let (choice position)
+    (let-alist (alist-get (intern name) org-cc)
+      (when (stringp (car .format))
+        (setq .format (org-cc--convert-columns-format (car .format))))
+      (org-cc--fill-format-spec .format)
+      (let-alist (org-cc--get-data .format
+				   (car .get-data-function)
+				   (car .get-data-config)
+				   (car .match)
+				   (car .scope)
+				   (car .skip))
+        (let* ((name-config (alist-get (intern name) org-cc))
+	       (sort-fun (or (nth 1 (assq 'sort-function name-config))
+			     org-cc-default-sort-function)))
+	  (setq choice
+                (completing-read
+	         (nth 1 (assq 'prompt (alist-get (intern name) org-cc)))
+	         (org-cc--create-collection .choice-list sort-fun)))
+	  (setq position (gethash choice .hash-table))))
+      (funcall (or (car .action) #'org-cc--goto) choice position))))
 
 (defun org-cc--convert-columns-format (fmt)
   "Convert Org column view FMT into `org-cc' format alist.
@@ -398,6 +396,18 @@ passed as arguments to `org-get-heading'."
       (when trim
         (setq s (string-trim s)))
       s)))
+
+(defun org-cc--goto (_choice position)
+  "Goto POSITION and show entry with children.
+Default action performed with selected completion candidate."
+  (let-alist position
+    (find-file .file)
+    (org-content 1)
+    (goto-char .startpos)
+    (when (or (org-invisible-p) (org-invisible-p2))
+      (org-fold-show-set-visibility t))
+    (org-fold-show-entry)
+    (org-fold-show-children)))
 
 
 (provide 'org-cc.el)
